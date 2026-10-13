@@ -90,7 +90,6 @@ impl<'tcx> Stable<'tcx> for callconv::FnAbi<'tcx, ty::Ty<'tcx>> {
         cx: &CompilerCtxt<'cx, BridgeTys>,
     ) -> Self::T {
         assert!(self.args.len() >= self.fixed_count as usize);
-        assert!(!self.c_variadic || matches!(self.conv, CanonAbi::C));
         FnAbi {
             args: self.args.as_ref().stable(tables, cx),
             ret: self.ret.stable(tables, cx),
