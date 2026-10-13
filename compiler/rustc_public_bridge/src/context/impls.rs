@@ -452,7 +452,12 @@ impl<'tcx, B: Bridge> CompilerCtxt<'tcx, B> {
 
     /// Evaluate constant as a target usize.
     pub fn eval_target_usize(&self, cnst: MirConst<'tcx>) -> Result<u64, B::Error> {
-        cnst.try_eval_target_usize(self.tcx, self.typing_env())
+        // `MirConst::try_eval_target_usize` asserts that the value is pointer-sized, so check the
+        // size first and report other integers as an error instead.
+        let tcx = self.tcx;
+        cnst.try_eval_scalar_int(tcx, self.typing_env())
+            .filter(|int| int.size() == tcx.data_layout.pointer_size())
+            .map(|int| int.to_target_usize(tcx))
             .ok_or_else(|| B::Error::new(format!("Const `{cnst:?}` cannot be encoded as u64")))
     }
 
