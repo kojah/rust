@@ -4,7 +4,7 @@
 
 use std::iter;
 
-use rustc_abi::{Endian, Layout, ReprOptions};
+use rustc_abi::{Endian, ExternAbi, Layout, ReprOptions};
 use rustc_attr_ir::Attribute;
 use rustc_attr_ir::lang_items::LangItem;
 use rustc_crate_store::ForeignModule;
@@ -619,11 +619,28 @@ impl<'tcx, B: Bridge> CompilerCtxt<'tcx, B> {
         &self,
         instance: ty::Instance<'tcx>,
     ) -> Result<&FnAbi<'tcx, Ty<'tcx>>, B::Error> {
-        Ok(self.fn_abi_of_instance(instance, List::empty())?)
+        // `fn_abi_of_instance` only supports function-like instances, and not LLVM intrinsics.
+        let ty = instance.ty(self.tcx, self.typing_env());
+        match ty.kind() {
+            ty::FnDef(..) if ty.fn_sig(self.tcx).abi() == ExternAbi::LlvmIntrinsic => {
+                Err(B::Error::new(format!("LLVM intrinsic `{instance}` has no function ABI")))
+            }
+            ty::FnDef(..) | ty::Closure(..) | ty::CoroutineClosure(..) | ty::Coroutine(..) => {
+                Ok(self.fn_abi_of_instance(instance, List::empty())?)
+            }
+            _ => Err(B::Error::new(format!(
+                "Instance `{instance}` of type `{ty}` is not a function"
+            ))),
+        }
     }
 
     /// Get the ABI of a function pointer.
     pub fn fn_ptr_abi(&self, sig: PolyFnSig<'tcx>) -> Result<&FnAbi<'tcx, Ty<'tcx>>, B::Error> {
+        if sig.abi() == ExternAbi::LlvmIntrinsic {
+            return Err(B::Error::new(format!(
+                "LLVM intrinsic signature `{sig}` has no function ABI"
+            )));
+        }
         Ok(self.fn_abi_of_fn_ptr(sig, List::empty())?)
     }
 
