@@ -748,7 +748,13 @@ impl<'tcx> CompilerInterface<'tcx> {
     pub(crate) fn eval_static_initializer(&self, def: StaticDef) -> Result<Allocation, Error> {
         self.with_cx(|tables, cx| {
             let def_id = def.0.internal(tables, cx.tcx);
-
+            // A foreign static is defined outside of Rust, so it has no initializer to evaluate.
+            if cx.tcx.is_foreign_item(def_id) {
+                return Err(crate::error::error!(
+                    "Cannot evaluate the initializer of foreign static `{}`",
+                    cx.tcx.def_path_str(def_id)
+                ));
+            }
             cx.eval_static_initializer(def_id).stable(tables, cx)
         })
     }
